@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF · Ask Ada — where should it live?</title>
+<style>
+  :root{
+    --bg:#f3efe6; --panel:#efe9dd; --panel-2:#e9e2d4; --line:#e0d8c8; --line-2:#d6ccb9;
+    --ink:#2a2622; --ink-2:#4a433b; --muted:#8b8274; --muted-2:#a69d8f;
+    --accent:#c4703a; --accent-soft:#f3dfcd; --paper:#ffffff;
+    --mark-a:#3b342d; --mark-b:#1e1a16; --mark-fg:#f8f0e2; --dot:#f0a347;
+    --ui: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", "SF Pro Text", Cantarell, Ubuntu, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --serif: "Latin Modern Roman", "CMU Serif", "Nimbus Roman", "Times New Roman", "Liberation Serif", Georgia, serif;
+    --spring: cubic-bezier(.2, 1.3, .35, 1);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:var(--ui); color:var(--ink); -webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #3a3129 0%, transparent 60%),
+      radial-gradient(900px 500px at 85% 110%, #2c2620 0%, transparent 60%),
+      #181613;
+    overflow:hidden; display:flex; flex-direction:column; align-items:center;
+  }
+  button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+  input{font:inherit;color:inherit}
+  svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+  /* ───────────── Presentation controls (outside the app) ───────────── */
+  .controls{padding:18px 20px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;flex:none}
+  .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#a89c8a;display:flex;gap:10px;align-items:center}
+  .eyebrow b{color:#e9dfcf;font-weight:600;letter-spacing:.12em}
+  .eyebrow .sep{width:4px;height:4px;border-radius:50%;background:#6d6255}
+  .seg{
+    position:relative;display:grid;grid-template-columns:repeat(3,1fr);padding:5px;border-radius:16px;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);
+    box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+    backdrop-filter:blur(12px);
+  }
+  .seg-thumb{
+    position:absolute;top:5px;bottom:5px;left:5px;width:calc((100% - 10px) / 3);border-radius:12px;
+    background:linear-gradient(180deg,#f7f2e8,#ece4d5);box-shadow:0 2px 10px rgba(0,0,0,.35), inset 0 1px 0 #fff;
+    transition:transform .45s var(--spring);
+  }
+  body[data-mode="fab"] .seg-thumb{transform:translateX(100%)}
+  body[data-mode="sidebar"] .seg-thumb{transform:translateX(200%)}
+  .seg button{
+    position:relative;z-index:1;width:min(300px, calc((100vw - 52px) / 3));padding:9px 18px 10px;border-radius:12px;text-align:left;
+    color:#cfc4b3;transition:color .25s;
+  }
+  .seg button .t{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;letter-spacing:-.005em}
+  .seg button .d{font-size:11.5px;line-height:1.35;margin-top:3px;color:#8f8474;transition:color .25s}
+  .seg button[aria-pressed="true"]{color:var(--ink)}
+  .seg button[aria-pressed="true"] .d{color:#6f6658}
+  .seg .tag{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);color:#b9ad9b}
+  .seg button[aria-pressed="true"] .tag{background:var(--accent-soft);color:#9a4f22}
+  .seg .who{font-weight:500;opacity:.75}
+  .mode-desc{display:none;font-size:11.5px;line-height:1.35;color:#a89c8a;text-align:center;max-width:360px;min-height:2.7em}
+  .hint{font-size:11px;color:#7e7365}
+  .hint kbd{font-family:var(--ui);font-size:10.5px;padding:1px 5px;border-radius:4px;border:1px solid #4a4239;background:#2a2520;color:#cbbfae}
+
+  /* ───────────── Stage / scaling ───────────── */
+  .stage-wrap{position:relative;flex:none}
+  .stage{position:absolute;top:0;left:0;width:1366px;height:720px;transform-origin:0 0}
+
+  /* ───────────── App window ───────────── */
+  .win{
+    position:absolute;inset:0;border-radius:12px;overflow:hidden;overflow:clip;background:var(--bg);
+    box-shadow:0 0 0 1px rgba(0,0,0,.5), 0 1px 0 0 rgba(255,255,255,.08) inset, 0 40px 90px rgba(0,0,0,.55), 0 12px 30px rgba(0,0,0,.35);
+    display:flex;flex-direction:column;
+  }
+  .titlebar{height:54px;flex:none;display:flex;align-items:center;padding:0 10px 0 12px;gap:10px;background:var(--bg);user-select:none}
+  .ibtn{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--ink-2);transition:background .15s,color .15s}
+  .ibtn:hover{background:rgba(60,45,30,.08);color:var(--ink)}
+  .ibtn:active{background:rgba(60,45,30,.13)}
+  .ibtn.on{background:rgba(60,45,30,.1);color:var(--ink)}
+  .doc-title{display:flex;flex-direction:column;line-height:1.15;margin-left:2px}
+  .doc-title .n{font-size:13.5px;font-weight:600;letter-spacing:-.005em}
+  .doc-title .s{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .tb-right{margin-left:auto;display:flex;align-items:center;gap:6px}
+  .pager{font-size:12.5px;color:var(--ink-2);padding:0 10px;font-variant-numeric:tabular-nums}
+  .pager b{font-weight:600;color:var(--ink)}
+  .zoom{display:flex;align-items:center;height:30px;border-radius:9px;background:var(--panel);border:1px solid var(--line);margin:0 4px}
+  .zoom button{width:28px;height:28px;display:grid;place-items:center;color:var(--ink-2);border-radius:8px}
+  .zoom button:hover{color:var(--ink);background:rgba(60,45,30,.07)}
+  .zoom span{font-size:12px;font-weight:500;min-width:44px;text-align:center;font-variant-numeric:tabular-nums}
+  .vsep{width:1px;height:20px;background:var(--line-2);margin:0 6px}
+  .wctl{display:flex;gap:8px;margin-left:6px}
+  .wctl button{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:rgba(60,45,30,.08);color:var(--ink-2);transition:background .15s}
+  .wctl button:hover{background:rgba(60,45,30,.16)}
+  .wctl svg.i{width:13px;height:13px;stroke-width:2}
+
+  .toolrow{height:40px;flex:none;display:flex;align-items:center;padding:0 12px;gap:2px;border-bottom:1px solid var(--line);background:var(--bg)}
+  .tool{width:34px;height:30px;border-radius:7px;display:grid;place-items:center;color:var(--ink-2);position:relative;transition:background .15s}
+  .tool:hover{background:rgba(60,45,30,.08);color:var(--ink)}
+  .tool.on{background:#fff;box-shadow:0 0 0 1px var(--line),0 1px 2px rgba(60,45,30,.08);color:var(--ink)}
+  .tool .sw{position:absolute;bottom:4px;left:50%;width:12px;height:2.5px;border-radius:2px;transform:translateX(-50%)}
+  .tool-sep{width:1px;height:18px;background:var(--line-2);margin:0 6px}
+  .toolrow .spacer{flex:1}
+  .tool[disabled]{opacity:.38;cursor:default}
+
+  .body{flex:1;display:flex;min-height:0}
+
+  /* sidebar */
+  .sidebar{width:150px;flex:none;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;transition:margin .35s var(--spring)}
+  .win.no-side .sidebar{margin-left:-151px}
+  .tabs{display:flex;align-items:center;justify-content:center;gap:10px;height:38px;flex:none;font-size:10.5px;font-weight:600;letter-spacing:.1em;color:var(--muted-2)}
+  .tabs button{padding:6px 2px;position:relative;letter-spacing:.1em;transition:color .15s}
+  .tabs button:hover{color:var(--ink-2)}
+  .tabs button.on{color:var(--ink)}
+  .tabs button.on::after{content:"";position:absolute;left:0;right:0;bottom:1px;height:2px;border-radius:2px;background:var(--ink)}
+  .tabs .bar{width:1px;height:11px;background:var(--line-2)}
+  .thumbs{flex:1;overflow:auto;padding:4px 0 14px;display:flex;flex-direction:column;align-items:center;gap:9px;scrollbar-width:none}
+  .thumbs::-webkit-scrollbar{display:none}
+  .thumb{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+  .thumb .pg{width:76px;height:98px;background:#fff;border-radius:3px;box-shadow:0 0 0 1px rgba(60,45,30,.1),0 1px 3px rgba(60,45,30,.12);padding:8px 7px;display:flex;flex-direction:column;gap:2.6px;overflow:hidden;transition:box-shadow .2s, transform .2s}
+  .thumb:hover .pg{transform:translateY(-1px);box-shadow:0 0 0 1px rgba(60,45,30,.16),0 4px 10px rgba(60,45,30,.14)}
+  .thumb .pg i{display:block;height:2.2px;border-radius:2px;background:#ddd6ca}
+  .thumb .pg i.s{width:62%}
+  .thumb .pg i.h{height:3px;background:#bdb3a3;width:48%;margin:3px 0 2px}
+  .thumb .pg .fig{display:flex;flex-direction:column;gap:3px;margin:3px 0 4px}
+  .thumb .pg .fig b{display:block;height:5px;border-radius:1px}
+  .thumb .pg .tbl{height:26px;border:1px solid #e3dccf;border-radius:1px;margin:3px 0;background:repeating-linear-gradient(#fff 0 5px,#efeae1 5px 6px)}
+  .thumb .num{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;padding:1px 7px;border-radius:6px}
+  .thumb.sel .pg{box-shadow:0 0 0 2.5px var(--accent),0 4px 12px rgba(196,112,58,.25)}
+  .thumb.sel .num{background:var(--accent);color:#fff;font-weight:600}
+  .toc{flex:1;overflow:auto;padding:4px 10px 16px;display:none}
+  .toc a{display:block;font-size:11.5px;line-height:1.3;color:var(--ink-2);padding:6px 8px;border-radius:7px;text-decoration:none;cursor:pointer}
+  .toc a:hover{background:rgba(60,45,30,.07)}
+  .toc a.sub{padding-left:18px;color:var(--muted);font-size:11px}
+  .toc a.on{background:#fff;color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+  .sidebar.show-toc .thumbs{display:none}
+  .sidebar.show-toc .toc{display:block}
+
+  /* main document area */
+  .main{flex:1;position:relative;min-width:0;background:var(--bg);overflow:hidden;overflow:clip}
+  .scroller{position:absolute;inset:0;overflow:auto;padding:26px 0 120px;scrollbar-width:thin;scrollbar-color:#cfc5b4 transparent}
+  .scroller::-webkit-scrollbar{width:10px}
+  .scroller::-webkit-scrollbar-thumb{background:#d4cab9;border-radius:10px;border:3px solid var(--bg)}
+  .page{
+    --z:1; width:calc(720px * var(--z)); margin:0 auto; background:var(--paper); font-size:calc(14.2px * var(--z));
+    padding:3.6em 4.6em 3em; font-family:var(--serif); color:#1c1b1a; line-height:1.42;
+    box-shadow:0 0 0 1px rgba(60,45,30,.07),0 2px 4px rgba(60,45,30,.06),0 12px 28px rgba(60,45,30,.09);
+    max-width:calc(100% - 32px);
+    border-radius:2px; transition:width .3s var(--spring), font-size .3s var(--spring);
+  }
+  .page p{margin:0 0 .85em;text-align:justify;hyphens:auto}
+  .page p.ind{text-indent:1.3em}
+  .page h4{font-size:1em;margin:1.4em 0 .6em;font-weight:700}
+  .page .cont{color:#1c1b1a}
+  .page figure{margin:1.3em 0 1.1em;border-radius:4px;transition:box-shadow .4s, background .4s}
+  .page figure.flash{animation:flash 1.6s ease}
+  @keyframes flash{0%,100%{box-shadow:0 0 0 0 rgba(240,163,71,0);background:transparent}25%,60%{box-shadow:0 0 0 8px rgba(240,163,71,.22);background:rgba(240,163,71,.1)}}
+  .page figure svg{display:block;width:100%;height:auto}
+  .page figcaption{font-size:.95em;line-height:1.38;margin-top:.7em;text-align:justify}
+  .page .pnum{text-align:center;margin-top:2.2em;font-size:.95em}
+  .page mark{background:#fbe6a6;padding:0 .05em;border-radius:2px}
+
+  /* ───────────── TODAY: docked ask bar + answer card ───────────── */
+  .askbar{
+    position:absolute;left:22px;right:22px;bottom:14px;height:52px;border-radius:26px;background:#fff;
+    display:flex;align-items:center;gap:10px;padding:0 8px 0 10px;z-index:5;
+    box-shadow:0 0 0 1px rgba(60,45,30,.1),0 8px 24px rgba(60,45,30,.12),0 2px 6px rgba(60,45,30,.06);
+    transition:opacity .3s, transform .45s var(--spring);
+  }
+  .askbar:focus-within{box-shadow:0 0 0 1px rgba(196,112,58,.55),0 0 0 4px rgba(196,112,58,.12),0 8px 24px rgba(60,45,30,.12)}
+  .askbar input{flex:1;border:0;outline:0;background:transparent;font-size:14px;height:100%}
+  .askbar input::placeholder{color:var(--muted-2)}
+  .draw-btn{display:flex;align-items:center;gap:7px;height:36px;padding:0 14px 0 12px;border-radius:18px;background:var(--panel);border:1px solid var(--line);font-size:12.5px;font-weight:500;color:var(--ink-2);transition:background .15s,border-color .15s}
+  .draw-btn:hover{background:var(--panel-2);border-color:var(--line-2);color:var(--ink)}
+  .draw-btn svg.i{width:15px;height:15px}
+
+  .mark{
+    width:30px;height:30px;border-radius:50%;flex:none;display:grid;place-items:center;
+    background:linear-gradient(150deg,var(--mark-a),var(--mark-b));color:var(--mark-fg);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 1px 2px rgba(0,0,0,.2);
+  }
+  .mark svg{width:62%;height:62%}
+  .ada-logo{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+
+  .answer-card{
+    position:absolute;left:22px;bottom:80px;width:560px;max-height:420px;z-index:4;display:flex;
+    background:#fff;border-radius:16px;
+    box-shadow:0 0 0 1px rgba(60,45,30,.09),0 18px 50px rgba(60,45,30,.18),0 4px 12px rgba(60,45,30,.08);
+    transform-origin:20% 100%;transition:opacity .3s, transform .45s var(--spring), max-height .4s var(--spring);
+  }
+  .answer-card.big{max-height:560px;width:640px}
+  .card-main{flex:1;min-width:0;padding:18px 6px 14px 20px;overflow:auto;scrollbar-width:thin}
+  .card-q{font-size:13.5px;color:var(--muted);line-height:1.4;margin-bottom:12px}
+  .steps{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+  .step{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);animation:fadeUp .35s ease both}
+  .step .ic{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;flex:none;background:#eef3ea;color:#4f8a4a}
+  .step .ic svg{width:11px;height:11px;stroke-width:2.6}
+  .step.busy .ic{background:none}
+  .step.busy .ic::before{content:"";width:11px;height:11px;border-radius:50%;border:2px solid #e3dccf;border-top-color:var(--accent);animation:spin .7s linear infinite}
+  .step.busy .ic svg{display:none}
+  .step.busy span{background:linear-gradient(90deg,var(--muted) 0%,var(--muted) 40%,#d8cfbf 50%,var(--muted) 60%,var(--muted) 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shimmer 1.4s linear infinite}
+  @keyframes shimmer{from{background-position:100% 0}to{background-position:-150% 0}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .ans{font-size:14px;line-height:1.55;color:var(--ink);animation:fadeUp .4s ease both}
+  .ans p{margin:0 0 .6em}
+  .ans q{font-style:italic;color:var(--ink-2)}
+  .cite{
+    display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;line-height:1;padding:3px 7px 3px 6px;margin-left:2px;
+    border-radius:6px;background:var(--accent-soft);color:#8d4a1f;cursor:pointer;vertical-align:1px;transition:background .15s
+  }
+  .cite:hover{background:#ecceb3}
+  .cite::before{content:"";width:9px;height:11px;border-radius:1.5px;border:1.5px solid currentColor;opacity:.75;box-sizing:border-box}
+  .copy-btn{display:inline-flex;align-items:center;gap:6px;margin-top:4px;height:28px;padding:0 10px 0 8px;border-radius:8px;font-size:12px;font-weight:500;color:var(--ink-2);border:1px solid var(--line);background:#fff;transition:background .15s}
+  .copy-btn:hover{background:var(--panel)}
+  .copy-btn svg.i{width:14px;height:14px}
+  .copy-btn.ok{color:#3f7a3a;border-color:#cfe2c9;background:#f2f8ef}
+  .card-rail{width:44px;flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 0;border-left:1px solid #f0ebe2}
+  .card-rail .ibtn{width:30px;height:30px;color:var(--muted)}
+  .card-rail .ibtn:hover{color:var(--ink)}
+  .card-rail svg.i{width:16px;height:16px}
+  .answer-card.collapsed .steps,.answer-card.collapsed .ans,.answer-card.collapsed .copy-btn{display:none}
+  .answer-card.collapsed .card-q{margin:0}
+  .answer-card.collapsed .rot{transform:rotate(180deg)}
+  .rot{transition:transform .3s var(--spring)}
+
+  /* mode visibility */
+  body[data-mode="fab"] .askbar,body[data-mode="sidebar"] .askbar{opacity:0;transform:translateY(24px);pointer-events:none}
+  body[data-mode="fab"] .answer-card,body[data-mode="sidebar"] .answer-card{opacity:0;transform:translateY(16px) scale(.96);pointer-events:none}
+  .answer-card.gone{opacity:0;transform:translateY(10px) scale(.97);pointer-events:none}
+  body[data-mode="today"] .fab,body[data-mode="sidebar"] .fab{opacity:0;transform:scale(.4);pointer-events:none}
+  body[data-mode="today"] .chat,body[data-mode="sidebar"] .chat{visibility:hidden}
+
+  /* ───────────── FAB ───────────── */
+  .fab{
+    position:absolute;right:28px;bottom:28px;width:56px;height:56px;border-radius:50%;z-index:12;
+    background:linear-gradient(150deg,#3d352d,#1c1814);color:var(--mark-fg);display:grid;place-items:center;
+    box-shadow:0 0 0 1px rgba(0,0,0,.25),0 1px 0 rgba(255,255,255,.14) inset,0 10px 24px rgba(40,28,15,.28),0 3px 8px rgba(40,28,15,.18);
+    transition:transform .4s var(--spring), box-shadow .3s, opacity .3s;
+  }
+  .fab:hover{transform:translateY(-3px) scale(1.04);box-shadow:0 0 0 1px rgba(0,0,0,.25),0 1px 0 rgba(255,255,255,.14) inset,0 18px 34px rgba(40,28,15,.32),0 6px 12px rgba(40,28,15,.2)}
+  .fab:active{transform:translateY(-1px) scale(.97);transition-duration:.12s}
+  .fab:focus-visible{outline:0;box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--accent),0 10px 24px rgba(40,28,15,.28)}
+  .fab .face{position:absolute;inset:0;display:grid;place-items:center;transition:transform .45s var(--spring), opacity .25s}
+  .fab .face.logo svg{width:30px;height:30px}
+  .fab .face.x{opacity:0;transform:rotate(-90deg) scale(.5)}
+  .fab .face.x svg{width:22px;height:22px;stroke-width:2.2}
+  .fab.open .face.logo{opacity:0;transform:rotate(90deg) scale(.5)}
+  .fab.open .face.x{opacity:1;transform:none}
+  .fab::after{content:"";position:absolute;inset:0;border-radius:50%;pointer-events:none}
+  .fab.pulse::after{animation:ring 1.8s ease-out 2}
+  @keyframes ring{0%{box-shadow:0 0 0 0 rgba(240,163,71,.55)}100%{box-shadow:0 0 0 18px rgba(240,163,71,0)}}
+  .fab-tip{
+    position:absolute;right:96px;bottom:42px;z-index:11;padding:7px 11px;border-radius:9px;background:#2a2520;color:#f4ebdc;
+    font-size:12px;font-weight:500;white-space:nowrap;pointer-events:none;opacity:0;transform:translateX(6px);transition:opacity .2s, transform .3s var(--spring);
+    box-shadow:0 6px 18px rgba(0,0,0,.2)
+  }
+  .fab-tip kbd{font-family:var(--ui);font-size:10.5px;margin-left:6px;padding:1px 5px;border-radius:4px;background:rgba(255,255,255,.12);color:#cdbfaa}
+  .fab-tip::after{content:"";position:absolute;right:-4px;top:50%;width:8px;height:8px;background:#2a2520;transform:translateY(-50%) rotate(45deg);border-radius:1px}
+  body[data-mode="fab"] .fab:not(.open):hover + .fab-tip,
+  body[data-mode="fab"] .fab-tip.show{opacity:1;transform:none}
+
+  /* ───────────── Chat overlay ───────────── */
+  .chat{
+    position:absolute;right:28px;bottom:98px;width:380px;height:512px;z-index:11;border-radius:20px;overflow:hidden;
+    background:#fbf9f5;display:flex;flex-direction:column;
+    box-shadow:0 0 0 1px rgba(60,45,30,.1),0 30px 70px rgba(40,28,15,.25),0 10px 24px rgba(40,28,15,.12);
+    transform-origin:calc(100% - 28px) calc(100% + 42px);
+    opacity:0;transform:scale(.147,.109);border-radius:60px;pointer-events:none;visibility:hidden;
+    transition:transform .3s cubic-bezier(.55,0,.8,.2), opacity .22s ease .08s, border-radius .3s ease, visibility 0s linear .32s;
+  }
+  .chat.open{
+    opacity:1;transform:none;border-radius:20px;pointer-events:auto;visibility:visible;
+    transition:transform .55s var(--spring), opacity .16s ease, border-radius .35s ease, visibility 0s;
+  }
+  .chat > *{transition:opacity .15s ease}
+  .chat:not(.open) > *{opacity:0}
+  .chat.open > *{opacity:1;transition:opacity .25s ease .12s}
+
+  .chat-h{height:60px;flex:none;display:flex;align-items:center;gap:11px;padding:0 10px 0 16px;border-bottom:1px solid #eee7da;background:linear-gradient(180deg,#fff,#fcfaf6)}
+  .chat-h .mark{width:32px;height:32px}
+  .chat-h .tt{display:flex;flex-direction:column;line-height:1.2}
+  .chat-h .tt b{font-size:14px;font-weight:650;letter-spacing:-.01em;display:flex;align-items:center;gap:6px}
+  .chat-h .tt b i{width:6px;height:6px;border-radius:50%;background:#62a85b;box-shadow:0 0 0 2px #e3f1df}
+  .chat-h .tt span{font-size:11.5px;color:var(--muted);margin-top:1px}
+  .chat-h .acts{margin-left:auto;display:flex;gap:2px}
+  .chat-h .ibtn{width:30px;height:30px;color:var(--muted)}
+  .chat-h .ibtn:hover{color:var(--ink)}
+  .chat-h svg.i{width:16px;height:16px}
+
+  .chat-body{flex:1;overflow:auto;padding:14px 16px 8px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth;scrollbar-width:thin;scrollbar-color:#ddd3c2 transparent}
+  .day{align-self:center;font-size:10.5px;color:var(--muted-2);letter-spacing:.04em;padding:2px 8px}
+  .msg{display:flex;gap:9px;animation:fadeUp .35s ease both}
+  .msg.user{justify-content:flex-end}
+  .msg.user .bubble{max-width:82%;background:#2c2722;color:#f7efe2;border-radius:16px 16px 5px 16px;padding:9px 13px;font-size:13.5px;line-height:1.45}
+  .msg.ada .mark{width:26px;height:26px;margin-top:2px}
+  .msg.ada .col{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start}
+  .msg.ada .steps{margin:3px 0 8px}
+  .msg.ada .step{font-size:12px}
+  .msg.ada .bubble{background:#fff;border-radius:5px 16px 16px 16px;padding:10px 13px;font-size:13.5px;line-height:1.52;box-shadow:0 0 0 1px #ece5d8,0 1px 2px rgba(60,45,30,.05)}
+  .msg.ada .bubble p{margin:0 0 .55em}
+  .msg.ada .bubble p:last-child{margin:0}
+  .msg.ada .bubble q{font-style:italic;color:var(--ink-2)}
+  .msg-acts{display:flex;gap:4px;margin-top:6px}
+  .msg-acts .copy-btn{margin:0;height:26px;font-size:11.5px;border-color:#ece5d8;background:transparent}
+  .msg-acts .copy-btn:hover{background:#fff}
+  .typing{display:flex;gap:4px;padding:12px 14px;background:#fff;border-radius:5px 16px 16px 16px;box-shadow:0 0 0 1px #ece5d8}
+  .typing i{width:6px;height:6px;border-radius:50%;background:#c7bcaa;animation:bob 1s ease-in-out infinite}
+  .typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+  @keyframes bob{0%,60%,100%{transform:none;opacity:.6}30%{transform:translateY(-4px);opacity:1}}
+
+  .chat-foot{flex:none;padding:8px 12px 12px;border-top:1px solid #f0eadf;background:#fbf9f5}
+  .chips{display:flex;gap:6px;margin-bottom:8px;overflow:hidden}
+  .chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px 0 9px;border-radius:14px;font-size:12px;font-weight:500;color:var(--ink-2);background:#fff;border:1px solid #e6dece;white-space:nowrap;transition:background .15s,border-color .15s}
+  .chip:hover{border-color:#d6cbb7;background:#fffdf9;color:var(--ink)}
+  .chip svg.i{width:14px;height:14px}
+  .chip.ctx{color:var(--muted);background:transparent;border-style:dashed;cursor:default}
+  .composer{display:flex;align-items:center;gap:6px;height:46px;padding:0 6px 0 14px;border-radius:14px;background:#fff;box-shadow:0 0 0 1px #e3dbcb,0 2px 6px rgba(60,45,30,.05);transition:box-shadow .2s}
+  .composer:focus-within{box-shadow:0 0 0 1px rgba(196,112,58,.6),0 0 0 4px rgba(196,112,58,.12)}
+  .composer input{flex:1;border:0;outline:0;background:transparent;font-size:13.5px;min-width:0}
+  .composer input::placeholder{color:var(--muted-2)}
+  .send{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:#e9e2d5;color:#fff;transition:background .2s, transform .2s var(--spring)}
+  .send svg.i{width:17px;height:17px;stroke-width:2.2}
+  .composer.has .send{background:var(--ink)}
+  .composer.has .send:hover{transform:scale(1.06)}
+
+  /* toast */
+  .toast{
+    position:absolute;left:50%;top:16px;z-index:30;transform:translate(-50%,-14px);opacity:0;pointer-events:none;
+    background:#2a2520;color:#f4ebdc;font-size:12.5px;padding:9px 14px 9px 12px;border-radius:11px;display:flex;align-items:center;gap:8px;
+    box-shadow:0 10px 28px rgba(0,0,0,.22);transition:opacity .25s, transform .4s var(--spring)
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  .toast .dot{width:7px;height:7px;border-radius:50%;background:var(--dot)}
+
+  /* ───────────── SIDEBAR (Ife): floating pill → docked chat ───────────── */
+  .win{--sw:151px;--dw:384px;--pad:24px;--pb:18px;--ph:54px}
+  .win.no-side{--sw:0px}
+  .body{position:relative;overflow:hidden}
+  .main{transition:margin-bottom .42s var(--spring)}
+  .dock-col{flex:none;width:0;transition:width .42s var(--spring)}
+  body[data-mode="sidebar"]:not(.compact) .win.docked .dock-col{width:var(--dw)}
+
+  .dock{
+    --pw:min(620px, calc(100% - var(--sw) - 2 * var(--pad)));
+    position:absolute;z-index:8;display:flex;flex-direction:column;overflow:hidden;
+    left:calc(var(--sw) + (100% - var(--sw) - var(--pw)) / 2);width:var(--pw);
+    top:calc(100% - var(--pb) - var(--ph));height:var(--ph);min-height:var(--ph);
+    border-radius:calc(var(--ph) / 2);background:#fff;
+    box-shadow:0 0 0 1px rgba(60,45,30,.1),0 8px 24px rgba(60,45,30,.12),0 2px 6px rgba(60,45,30,.06);
+    transition:left .42s var(--spring), width .42s var(--spring), top .42s var(--spring), height .42s var(--spring),
+      border-radius .42s ease, background-color .3s, box-shadow .3s, opacity .3s, transform .45s var(--spring), visibility 0s;
+  }
+  .win:not(.docked) .dock:focus-within{box-shadow:0 0 0 1px rgba(196,112,58,.55),0 0 0 4px rgba(196,112,58,.12),0 8px 24px rgba(60,45,30,.12)}
+  .win.docked .dock{
+    left:calc(100% - var(--dw));width:var(--dw);top:0;height:100%;
+    border-radius:0;background:#fbf9f5;box-shadow:-1px 0 0 var(--line),-14px 0 34px rgba(60,45,30,.06);
+  }
+  body:not([data-mode="sidebar"]) .dock{
+    opacity:0;transform:translateY(24px);pointer-events:none;visibility:hidden;
+    transition:opacity .3s, transform .45s var(--spring), visibility 0s linear .3s;
+  }
+
+  .dock-panel{
+    flex:1;min-height:0;width:var(--dw);align-self:flex-end;display:flex;flex-direction:column;overflow:hidden;
+    opacity:0;visibility:hidden;transition:opacity .12s ease, visibility 0s linear .12s;
+  }
+  .win.docked .dock-panel{opacity:1;visibility:visible;transition:opacity .25s ease .16s, visibility 0s}
+  .dock .chat-h{position:relative}
+  .dock-empty{margin:auto 0 4px;display:flex;flex-direction:column;gap:10px;font-size:13px;color:var(--muted);animation:fadeUp .35s ease both}
+  .dock-empty .sugs{display:flex;flex-wrap:wrap;gap:6px}
+
+  .dock-form{
+    flex:none;display:flex;align-items:center;gap:8px;height:var(--ph);margin:0;padding:0 8px 0 12px;
+    border-radius:calc(var(--ph) / 2);background:transparent;box-shadow:0 0 0 0 transparent;
+    transition:margin .42s var(--spring), height .42s var(--spring), padding .42s var(--spring), border-radius .42s ease, background-color .3s, box-shadow .2s;
+  }
+  .dock-form input{flex:1;min-width:0;height:100%;border:0;outline:0;background:transparent;font-size:14px}
+  .dock-form input::placeholder{color:var(--muted-2)}
+  .dock-form .mark{transition:width .3s var(--spring), margin .3s var(--spring), opacity .2s}
+  .dock-form .send{border-radius:50%}
+  .dock-form.has .send{background:var(--ink)}
+  .dock-form.has .send:hover{transform:scale(1.06)}
+  .win.docked .dock-form{
+    height:48px;margin:4px 12px 12px;padding:0 6px 0 14px;border-radius:14px;background:#fff;
+    box-shadow:0 0 0 1px #e3dbcb,0 2px 6px rgba(60,45,30,.05);
+  }
+  .win.docked .dock-form:focus-within{box-shadow:0 0 0 1px rgba(196,112,58,.6),0 0 0 4px rgba(196,112,58,.12)}
+  .win.docked .dock-form .mark{width:0;margin-right:-8px;opacity:0}
+  .win.docked .dock-form .send{border-radius:10px}
+  .win.docked .dock-form .draw-btn{height:32px;padding:0 11px 0 9px}
+
+  /* ───────────── Narrow screens (phones): real layout, no scaling ───────────── */
+  body.preload *{transition:none!important}
+  body.compact .controls{width:100%;padding:10px 8px 8px;gap:8px}
+  body.compact .eyebrow{font-size:10px;letter-spacing:.1em;gap:8px;flex-wrap:wrap;justify-content:center;text-align:center}
+  body.compact .seg{width:100%}
+  body.compact .seg button{width:auto;min-width:0;padding:9px 4px;text-align:center}
+  body.compact .seg button .t{justify-content:center;flex-wrap:wrap;gap:0 4px;font-size:12.5px}
+  body.compact .seg button .d,body.compact .seg .tag,body.compact .hint{display:none}
+  body.compact .mode-desc{display:block}
+
+  body.compact .tb-right{margin-left:0;gap:2px}
+  body.compact .doc-title{flex:1;min-width:0}
+  body.compact .doc-title .n,body.compact .doc-title .s{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.compact .zoom,body.compact .wctl,body.compact .tb-right .ibtn[title="More"]{display:none}
+  body.compact .pager{padding:0 4px;font-size:12px}
+  body.compact .toolrow{overflow-x:auto;scrollbar-width:none;padding:0 6px}
+  body.compact .toolrow::-webkit-scrollbar{display:none}
+  body.compact .tool{flex:none}
+  body.compact .scroller{padding:12px 0 100px}
+  body.compact .page{width:auto;max-width:none;margin:0 10px;font-size:calc(12.5px * var(--z));padding:1.9em 1.5em 1.6em}
+
+  body.compact #askInput,body.compact #chatInput,body.compact #dockInput{font-size:16px}
+  body.compact .draw-btn{width:36px;padding:0;justify-content:center;flex:none}
+  body.compact .draw-btn .lbl{display:none}
+  body.compact .askbar{left:10px;right:10px;bottom:12px}
+  body.compact .answer-card,body.compact .answer-card.big{left:10px;right:10px;width:auto;bottom:74px;max-height:calc(100% - 92px)}
+
+  body.compact .fab{right:16px;bottom:16px;width:52px;height:52px}
+  body.compact .fab-tip{right:80px;bottom:28px}
+  body.compact .chat{left:10px;right:10px;width:auto;bottom:80px;height:min(512px, calc(100% - 96px));transform-origin:calc(100% - 32px) calc(100% + 42px)}
+
+  body.compact .win{--pad:10px;--pb:12px}
+  body.compact .dock-panel{width:100%}
+  body.compact .win.docked .dock{
+    left:0;width:100%;top:calc(100% - var(--sheet-h, 60%));height:var(--sheet-h, 60%);border-radius:18px 18px 0 0;
+    box-shadow:0 -1px 0 var(--line),0 -14px 34px rgba(40,28,15,.16);
+  }
+  body.compact .dock .chat-h::before{content:"";position:absolute;top:6px;left:50%;width:36px;height:4px;border-radius:2px;background:#ddd3c2;transform:translateX(-50%)}
+  body.compact[data-mode="sidebar"] .win.docked .main{margin-bottom:var(--sheet-h, 60%)}
+</style>
+</head>
+<body data-mode="today" class="preload">
+
+<!-- Icon sprite -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="ada" viewBox="0 0 32 32">
+      <g class="ada-logo">
+        <path d="M8.6 25 L16 7.2 L23.4 25" stroke-width="3.1"/>
+        <path d="M11.2 18.9 C13.8 17.3 18.2 17.3 20.8 18.9" stroke-width="2.6"/>
+      </g>
+      <circle cx="24.6" cy="8.4" r="2.3" fill="var(--dot)"/>
+    </symbol>
+    <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.2 4.2"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.5" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-min" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
+    <symbol id="i-max" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+    <symbol id="i-cursor" viewBox="0 0 24 24"><path d="M6 4l12.5 6.3-5.4 1.6-2.4 5.3z"/><path d="M13.3 12l4.2 4.2"/></symbol>
+    <symbol id="i-highlight" viewBox="0 0 24 24"><path d="M14.8 4.2l5 5-7.6 7.6H7.2v-5z"/><path d="M7.2 16.8L4.6 19.4"/></symbol>
+    <symbol id="i-underline" viewBox="0 0 24 24"><path d="M7.5 4.5v5.8a4.5 4.5 0 0 0 9 0V4.5"/><path d="M5.5 19.5h13"/></symbol>
+    <symbol id="i-strike" viewBox="0 0 24 24"><path d="M16.3 7.6C15.8 5.8 14.1 4.7 12 4.7c-2.5 0-4.3 1.3-4.3 3.3 0 1.5 1 2.5 2.8 3"/><path d="M4.5 12h15"/><path d="M15.6 14.6c.5.6.8 1.2.8 2 0 1.9-1.9 3.2-4.4 3.2-2.3 0-4.1-1-4.6-2.8"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="M15.6 4.6l3.8 3.8L9 18.8l-4.7 1 1-4.7z"/><path d="M13.4 6.8l3.8 3.8"/></symbol>
+    <symbol id="i-textbox" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M8.5 9h7M12 9v6.5"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24"><path d="M5 4.5h14a1 1 0 0 1 1 1v8.6l-5.9 5.4H5a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1z"/><path d="M14 19.4V15a1 1 0 0 1 1-1h4.9"/><path d="M8 9h8M8 12.5h4"/></symbol>
+    <symbol id="i-sign" viewBox="0 0 24 24"><path d="M3.5 15.8c2.4-.2 3.9-5.6 5.4-9.1.8-1.8 2.5-1.6 2.1.4-.6 3.2-3.5 8.5-3 9.1.6.9 2.3-2.5 3.5-2.5 1.1 0 .8 2.1 1.8 2.1s1.7-1.2 2.8-1.2c.9 0 1.2.7 2.4.7"/><path d="M3.5 20h17"/></symbol>
+    <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V4.5h10V9"/><path d="M7 16.5H5.5a2 2 0 0 1-2-2V11a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2v3.5a2 2 0 0 1-2 2H17"/><rect x="7" y="13.5" width="10" height="6" rx="1"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9.5 6.5L5 11l4.5 4.5"/><path d="M5 11h9.5a4.5 4.5 0 0 1 0 9H12"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="M14.5 6.5L19 11l-4.5 4.5"/><path d="M19 11H9.5a4.5 4.5 0 0 0 0 9H12"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M15.4 5l3.6 3.6-9.9 9.9-4.6 1 1-4.6z"/><path d="M13.3 7.1l3.6 3.6"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M14 4.5h5.5V10M10 19.5H4.5V14M19.5 4.5L13.8 10.2M4.5 19.5l5.7-5.7"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6.5 9.5l5.5 5.5 5.5-5.5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2.2"/><path d="M15.5 8.5V6.2a1.7 1.7 0 0 0-1.7-1.7H6.2a1.7 1.7 0 0 0-1.7 1.7v7.6a1.7 1.7 0 0 0 1.7 1.7h2.3"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V5.5M6.5 11l5.5-5.5 5.5 5.5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.3 4.3L19 7.3"/></symbol>
+    <symbol id="i-collapse" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M14.5 4.5v15"/><path d="M8 9.5l2.5 2.5L8 14.5"/></symbol>
+  </defs>
+</svg>
+
+<!-- Presentation controls -->
+<div class="controls" id="controls">
+  <div class="eyebrow"><b>PDF × Ada</b><span class="sep"></span>Where should “Ask Ada” live?</div>
+  <div class="seg" role="group" aria-label="Design variant">
+    <div class="seg-thumb"></div>
+    <button id="segToday" aria-pressed="true" data-mode="today">
+      <span class="t">Today <span class="tag">Current</span></span>
+      <span class="d">Ask bar is always docked at the bottom; answers pop up over the page text.</span>
+    </button>
+    <button id="segFab" aria-pressed="false" data-mode="fab">
+      <span class="t">FAB <span class="who">(Babs)</span> <span class="tag">Proposal</span></span>
+      <span class="d">Ada tucks into a floating button; chat opens as an overlay and the page never moves.</span>
+    </button>
+    <button id="segSidebar" aria-pressed="false" data-mode="sidebar">
+      <span class="t">Sidebar <span class="who">(Ife)</span> <span class="tag">Proposal</span></span>
+      <span class="d">Ask from a floating pill; sending morphs it into a docked chat sidebar and the page reflows beside it.</span>
+    </button>
+  </div>
+  <div class="mode-desc" id="modeDesc" aria-live="polite"></div>
+  <div class="hint">Try it: switch variants with <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>, type a question + <kbd>Enter</kbd>, <kbd>Esc</kbd> to close</div>
+</div>
+
+<div class="stage-wrap" id="stageWrap">
+<div class="stage" id="stage">
+  <div class="win" id="win">
+
+    <!-- Title bar -->
+    <div class="titlebar">
+      <button class="ibtn on" id="sideToggle" title="Toggle sidebar" aria-label="Toggle sidebar"><svg class="i"><use href="#i-sidebar"/></svg></button>
+      <div class="doc-title">
+        <span class="n">2201.11903v6.pdf</span>
+        <span class="s">PDF document · 43 pages</span>
+      </div>
+      <div class="tb-right">
+        <span class="pager">Page <b>16</b> of 43</span>
+        <div class="zoom">
+          <button id="zoomOut" aria-label="Zoom out"><svg class="i" style="width:15px;height:15px"><use href="#i-min"/></svg></button>
+          <span id="zoomVal">100%</span>
+          <button id="zoomIn" aria-label="Zoom in"><svg class="i" style="width:15px;height:15px"><use href="#i-plus"/></svg></button>
+        </div>
+        <button class="ibtn" title="Search" aria-label="Search"><svg class="i"><use href="#i-search"/></svg></button>
+        <button class="ibtn" title="More" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button>
+        <div class="wctl">
+          <button aria-label="Minimise"><svg class="i"><use href="#i-min"/></svg></button>
+          <button aria-label="Maximise"><svg class="i"><use href="#i-max"/></svg></button>
+          <button aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Annotation tools -->
+    <div class="toolrow" id="tools">
+      <button class="tool on" title="Select"><svg class="i"><use href="#i-cursor"/></svg></button>
+      <button class="tool" title="Highlight"><svg class="i"><use href="#i-highlight"/></svg><span class="sw" style="background:#f3c64f"></span></button>
+      <button class="tool" title="Underline"><svg class="i"><use href="#i-underline"/></svg></button>
+      <button class="tool" title="Strikethrough"><svg class="i"><use href="#i-strike"/></svg></button>
+      <span class="tool-sep"></span>
+      <button class="tool" title="Pen"><svg class="i"><use href="#i-pen"/></svg></button>
+      <button class="tool" title="Text box"><svg class="i"><use href="#i-textbox"/></svg></button>
+      <button class="tool" title="Note"><svg class="i"><use href="#i-note"/></svg></button>
+      <button class="tool" title="Signature"><svg class="i"><use href="#i-sign"/></svg></button>
+      <span class="tool-sep"></span>
+      <button class="tool" title="Print"><svg class="i"><use href="#i-print"/></svg></button>
+      <span class="spacer"></span>
+      <button class="tool" title="Undo"><svg class="i"><use href="#i-undo"/></svg></button>
+      <button class="tool" title="Redo" disabled><svg class="i"><use href="#i-redo"/></svg></button>
+    </div>
+
+    <div class="body">
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <div class="tabs">
+          <button class="on" data-tab="pages">PAGES</button><span class="bar"></span><button data-tab="toc">CONTENTS</button>
+        </div>
+        <div class="thumbs" id="thumbs">
+          <div class="thumb" data-p="12"><div class="pg"><i></i><i></i><i></i><i class="s"></i><div class="tbl"></div><i></i><i></i><i></i><i></i><i class="s"></i><i></i><i></i><i></i><i class="s"></i></div><span class="num">12</span></div>
+          <div class="thumb" data-p="13"><div class="pg"><i class="h"></i><i></i><i></i><i></i><i></i><i class="s"></i><i></i><i></i><i></i><i></i><i class="s"></i><i></i><i></i><i></i><i class="s"></i></div><span class="num">13</span></div>
+          <div class="thumb" data-p="14"><div class="pg"><i></i><i></i><i class="s"></i><i></i><i></i><i></i><i class="s"></i><i class="h"></i><i></i><i></i><i></i><i></i><i></i><i class="s"></i><i></i><i class="s"></i></div><span class="num">14</span></div>
+          <div class="thumb" data-p="15"><div class="pg"><i class="h"></i><i></i><i></i><i></i><i class="s"></i><div class="tbl" style="height:34px"></div><i></i><i></i><i></i><i></i><i class="s"></i></div><span class="num">15</span></div>
+          <div class="thumb sel" data-p="16"><div class="pg"><i></i><i class="s"></i><div class="fig"><b style="width:70%;background:linear-gradient(90deg,#f8dc98 70%,#f2a531 70%)"></b><b style="width:62%;background:linear-gradient(90deg,#f7c0dc 33%,#d8418f 33%)"></b><b style="width:32%;background:linear-gradient(90deg,#f8c2b3 43%,#e2563f 43%)"></b></div><i></i><i class="s"></i><i></i><i></i><i></i><i></i><i class="s"></i><i class="h"></i><i></i><i></i></div><span class="num">16</span></div>
+        </div>
+        <nav class="toc" id="toc">
+          <a>Abstract</a>
+          <a>1 Introduction</a>
+          <a>2 Chain-of-Thought Prompting</a>
+          <a>3 Arithmetic Reasoning</a>
+          <a>4 Commonsense Reasoning</a>
+          <a>5 Symbolic Reasoning</a>
+          <a>6 Discussion</a>
+          <a>7 Related Work</a>
+          <a>8 Conclusions</a>
+          <a>A Frequently Asked Questions</a>
+          <a class="sub on">A.1 Why does scale improve CoT?</a>
+          <a class="sub">A.2 Role of prompt engineering</a>
+          <a>B All Experimental Results</a>
+          <a>G Appendix: Full Prompts</a>
+        </nav>
+      </aside>
+
+      <!-- Document -->
+      <main class="main" id="main">
+        <div class="scroller" id="scroller">
+          <article class="page" id="page">
+            <p class="cont">these two models, we manually examined the 45 problems that PaLM 62B answered incorrectly and grouped its errors into three categories, then checked how many of each were answered correctly by PaLM 540B. The categories and how scaling affects them are summarised in Figure 9.</p>
+
+            <figure id="fig9">
+              <svg viewBox="0 0 600 214" role="img" aria-label="Error analysis bar chart" font-family="Helvetica, Arial, sans-serif">
+                <defs>
+                  <marker id="ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+                    <path d="M1 1L9 5L1 9" fill="none" stroke="#3a3530" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                  </marker>
+                </defs>
+                <!-- Row 1 -->
+                <text x="10" y="20" font-size="10.6" fill="#222"><tspan font-weight="700">Semantic understanding</tspan> (62B made 20 errors of this type, 540B fixes 6 of them)</text>
+                <rect x="10" y="28" width="224" height="26" fill="#f9dd9c"/>
+                <rect x="234" y="28" width="96" height="26" fill="#f2a32a"/>
+                <!-- Row 2 -->
+                <text x="10" y="86" font-size="10.6" fill="#222"><tspan font-weight="700">One step missing</tspan> (62B made 18 errors of this type, 540B fixes 12 of them)</text>
+                <rect x="10" y="94" width="96" height="26" fill="#f7c3de"/>
+                <rect x="106" y="94" width="192" height="26" fill="#d8418f"/>
+                <!-- Row 3 -->
+                <text x="10" y="152" font-size="10.6" fill="#222"><tspan font-weight="700">Other</tspan> (62B made 7 errors of this type, 540B fixes 4 of them)</text>
+                <rect x="10" y="160" width="48" height="26" fill="#f9c5b6"/>
+                <rect x="58" y="160" width="64" height="26" fill="#e2563f"/>
+                <!-- grid ticks -->
+                <g stroke="#cfc8bd" stroke-width="1">
+                  <line x1="10" y1="196" x2="330" y2="196"/>
+                  <line x1="10" y1="196" x2="10" y2="200"/><line x1="90" y1="196" x2="90" y2="200"/><line x1="170" y1="196" x2="170" y2="200"/><line x1="250" y1="196" x2="250" y2="200"/><line x1="330" y1="196" x2="330" y2="200"/>
+                </g>
+                <g font-size="8.5" fill="#777" text-anchor="middle">
+                  <text x="10" y="210">0</text><text x="90" y="210">5</text><text x="170" y="210">10</text><text x="250" y="210">15</text><text x="330" y="210">20</text>
+                </g>
+                <!-- arrows -->
+                <g fill="none" stroke="#3a3530" stroke-width="1.3">
+                  <path d="M474 102 C 474 52, 420 41, 336 41" marker-end="url(#ah)"/>
+                  <path d="M474 107 L 304 107" marker-end="url(#ah)"/>
+                  <path d="M474 112 C 474 168, 330 173, 128 173" marker-end="url(#ah)"/>
+                </g>
+                <text x="482" y="98" font-size="10.6" fill="#222">Errors fixed by</text>
+                <text x="482" y="111" font-size="10.6" fill="#222">scaling from 62B</text>
+                <text x="482" y="124" font-size="10.6" fill="#222">to 540B</text>
+              </svg>
+              <figcaption><b>Figure 9:</b> Error analysis of 45 problems that PaLM 62B got incorrect. These errors were categorized into semantic understanding, one step missing, and other. The other category includes hallucinations, repetitive outputs, and symbol mapping errors. Scaling PaLM to 540B fixed a substantial portion of errors in all categories.</figcaption>
+            </figure>
+
+            <p class="ind">As shown in the figure, scaling PaLM from 62B to 540B fixes a large portion of the one-step-missing and semantic understanding errors. This suggests that larger models acquire semantic understanding and logical reasoning skills as a function of scale, though we note that the error categories are coarse and some problems exhibit more than one kind of mistake.</p>
+            <p class="ind">We also examined the small number of problems that PaLM 540B got wrong but PaLM 62B got right. These cases were rare and mostly involved arithmetic slips in otherwise sound chains of thought, which the external calculator described in Section 3 would correct. Taken together, these findings suggest that the emergence of chain-of-thought reasoning is driven by improvements in a combination of abilities rather than any single skill.</p>
+            <p class="ind">Why do small models fail? Inspecting the outputs of the smallest models, we found that they frequently fail even on symbol mapping tasks that only require copying from the exemplars, and that they often produce fluent but illogical chains of thought. Smaller models therefore seem to lack the capacity needed to make use of the reasoning patterns shown in the prompt.</p>
+
+            <h4>A.2 What is the role of prompt engineering?</h4>
+            <p>One of the key considerations of prompting is sensitivity to the exact prompt. There is no shortage of work showing that prompts affect language models in unexpected ways. The general way that we created chain-of-thought annotations was by taking eight exemplars from the training set and decomposing the reasoning process into multiple steps leading to the final answer.</p>
+            <p class="ind">To probe robustness, we had three different annotators write chains of thought for the same exemplars, and also evaluated exemplars written in a deliberately concise style. Although the variance across annotators is non-trivial, all sets of chain-of-thought prompts outperform standard prompting by a large margin, as reported in Table 6 and Figure 6.</p>
+            <p class="ind">We further tested whether the order and number of exemplars matter. Performance was broadly stable across random permutations, and gains from chain-of-thought prompting appeared with as few as one exemplar, increasing modestly as more were added.</p>
+            <div class="pnum">16</div>
+          </article>
+        </div>
+
+        <!-- TODAY: answer card -->
+        <div class="answer-card" id="card">
+          <div class="card-main" id="cardMain">
+            <div class="card-q" id="cardQ">what was the first answer to the first question for the coin flip prompt</div>
+            <div class="steps" id="cardSteps">
+              <div class="step"><span class="ic"><svg class="i"><use href="#i-check"/></svg></span><span>Looking up the coin flip prompt in the appendix.</span></div>
+              <div class="step"><span class="ic"><svg class="i"><use href="#i-check"/></svg></span><span>Reading the full coin flip prompt on p. 37...</span></div>
+            </div>
+            <div class="ans" id="cardAns">
+              <p>The first answer is <b>“yes.”</b> The first exemplar asks: <q>A coin is heads up. Ka flips the coin. Sherrie flips the coin. Is the coin still heads up?</q> The chain of thought notes the coin was flipped 2 times, an even number, so it stays heads up — so the answer is yes. <span class="cite" data-p="37">p. 37, Table 23</span></p>
+            </div>
+            <button class="copy-btn" data-copy="#cardAns"><svg class="i"><use href="#i-copy"/></svg><span>Copy</span></button>
+          </div>
+          <div class="card-rail">
+            <button class="ibtn" id="cardExpand" title="Expand"><svg class="i"><use href="#i-expand"/></svg></button>
+            <button class="ibtn" id="cardCollapse" title="Collapse"><svg class="i rot"><use href="#i-chev"/></svg></button>
+            <button class="ibtn" id="cardNew" title="New question"><svg class="i"><use href="#i-plus"/></svg></button>
+          </div>
+        </div>
+
+        <!-- TODAY: docked ask bar -->
+        <form class="askbar" id="askbar" autocomplete="off">
+          <span class="mark"><svg><use href="#ada"/></svg></span>
+          <input id="askInput" placeholder="Ask a follow-up" aria-label="Ask a follow-up">
+          <button type="button" class="draw-btn js-draw"><svg class="i"><use href="#i-pencil"/></svg><span class="lbl">Draw to ask</span></button>
+        </form>
+
+        <!-- FAB: overlay chat -->
+        <section class="chat" id="chat" role="dialog" aria-label="Ada chat" aria-hidden="true">
+          <header class="chat-h">
+            <span class="mark"><svg><use href="#ada"/></svg></span>
+            <div class="tt"><b>Ada <i></i></b><span>Ask about this PDF</span></div>
+            <div class="acts">
+              <button class="ibtn" id="chatMin" title="Minimise" aria-label="Minimise"><svg class="i"><use href="#i-min"/></svg></button>
+              <button class="ibtn" id="chatClose" title="Close" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button>
+            </div>
+          </header>
+          <div class="chat-body" id="chatBody">
+            <div class="day">Today · 5:32 PM</div>
+            <div class="msg user"><div class="bubble">what was the first answer to the first question for the coin flip prompt</div></div>
+            <div class="msg ada">
+              <span class="mark"><svg><use href="#ada"/></svg></span>
+              <div class="col">
+                <div class="steps">
+                  <div class="step"><span class="ic"><svg class="i"><use href="#i-check"/></svg></span><span>Looking up the coin flip prompt in the appendix.</span></div>
+                  <div class="step"><span class="ic"><svg class="i"><use href="#i-check"/></svg></span><span>Reading the full coin flip prompt on p. 37...</span></div>
+                </div>
+                <div class="bubble" id="firstAns"><p>The first answer is <b>“yes.”</b> The first exemplar asks: <q>A coin is heads up. Ka flips the coin. Sherrie flips the coin. Is the coin still heads up?</q> It was flipped 2 times — an even number — so it stays heads up. <span class="cite" data-p="37">p. 37, Table 23</span></p></div>
+                <div class="msg-acts"><button class="copy-btn" data-copy="#firstAns"><svg class="i"><use href="#i-copy"/></svg><span>Copy</span></button></div>
+              </div>
+            </div>
+          </div>
+          <div class="chat-foot">
+            <div class="chips">
+              <button type="button" class="chip js-draw"><svg class="i"><use href="#i-pencil"/></svg>Draw to ask</button>
+              <span class="chip ctx">Reading p. 16</span>
+            </div>
+            <form class="composer" id="composer" autocomplete="off">
+              <input id="chatInput" placeholder="Ask a follow-up" aria-label="Ask a follow-up">
+              <button class="send" type="submit" aria-label="Send"><svg class="i"><use href="#i-send"/></svg></button>
+            </form>
+          </div>
+        </section>
+
+        <button class="fab" id="fab" aria-label="Ask Ada" aria-expanded="false">
+          <span class="face logo"><svg><use href="#ada"/></svg></span>
+          <span class="face x"><svg class="i"><use href="#i-x"/></svg></span>
+        </button>
+        <div class="fab-tip" id="fabTip">Ask Ada about this PDF<kbd>Ctrl J</kbd></div>
+
+        <div class="toast" id="toast"><span class="dot"></span><span id="toastText"></span></div>
+      </main>
+
+      <!-- SIDEBAR (Ife): reserves room so the page reflows -->
+      <div class="dock-col" aria-hidden="true"></div>
+
+      <!-- SIDEBAR (Ife): floating pill that morphs into the docked chat -->
+      <section class="dock" id="dock" aria-label="Ada">
+        <div class="dock-panel" id="dockPanel" aria-hidden="true">
+          <header class="chat-h">
+            <span class="mark"><svg><use href="#ada"/></svg></span>
+            <div class="tt"><b>Ada <i></i></b><span>Ask about this PDF</span></div>
+            <div class="acts">
+              <button class="ibtn" id="dockCollapse" title="Collapse to pill (Esc)" aria-label="Collapse to pill"><svg class="i"><use href="#i-collapse"/></svg></button>
+            </div>
+          </header>
+          <div class="chat-body" id="dockBody">
+            <div class="day">Today · 5:32 PM</div>
+            <div class="dock-empty" id="dockEmpty">
+              <span>Ask anything about this paper, or try:</span>
+              <div class="sugs">
+                <button type="button" class="chip js-sug">Explain Figure 9</button>
+                <button type="button" class="chip js-sug">Summarise this paper</button>
+                <button type="button" class="chip js-sug">Why does scale help?</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <form class="dock-form" id="dockForm" autocomplete="off">
+          <span class="mark"><svg><use href="#ada"/></svg></span>
+          <input id="dockInput" placeholder="Ask Ada about this PDF…" aria-label="Ask Ada about this PDF">
+          <button type="button" class="draw-btn js-draw"><svg class="i"><use href="#i-pencil"/></svg><span class="lbl">Draw to ask</span></button>
+          <button class="send" type="submit" aria-label="Send"><svg class="i"><use href="#i-send"/></svg></button>
+        </form>
+      </section>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+
+  const W = 1366, H = 720;
+  const stage = $('#stage'), wrap = $('#stageWrap'), controls = $('#controls');
+  const fab = $('#fab'), chat = $('#chat'), chatBody = $('#chatBody'), chatInput = $('#chatInput');
+  const card = $('#card');
+  const win = $('#win'), dock = $('#dock'), dockForm = $('#dockForm'), dockInput = $('#dockInput'), dockBody = $('#dockBody');
+
+  /* ── Fit the 1366×720 window to the viewport; phones get a real narrow layout instead ── */
+  let wasCompact = false, autoNoSide = false;
+  function fit(){
+    const compact = window.innerWidth < 720;
+    document.body.classList.toggle('compact', compact);
+    if (compact !== wasCompact) {
+      wasCompact = compact;
+      const t = $('#sideToggle');
+      if (compact && !win.classList.contains('no-side')) { win.classList.add('no-side'); t.classList.remove('on'); autoNoSide = true; }
+      else if (!compact && autoNoSide) { win.classList.remove('no-side'); t.classList.add('on'); autoNoSide = false; }
+    }
+    if (compact) {
+      const w = Math.round(window.innerWidth - 16);
+      const h = Math.max(320, Math.round(window.innerHeight - controls.offsetHeight - 10));
+      stage.style.width = w + 'px';
+      stage.style.height = h + 'px';
+      stage.style.transform = 'none';
+      wrap.style.width = w + 'px';
+      wrap.style.height = h + 'px';
+      const bh = $('.body').clientHeight;
+      win.style.setProperty('--sheet-h', Math.round(Math.min(bh - 60, Math.max(bh * 0.62, 240))) + 'px');
+      return;
+    }
+    stage.style.width = W + 'px';
+    stage.style.height = H + 'px';
+    win.style.removeProperty('--sheet-h');
+    const availW = window.innerWidth - 40;
+    const availH = window.innerHeight - controls.offsetHeight - 22;
+    const s = Math.max(0.3, Math.min(1, availW / W, availH / H));
+    stage.style.transform = 'scale(' + s + ')';
+    wrap.style.width = (W * s) + 'px';
+    wrap.style.height = (H * s) + 'px';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+  requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.remove('preload')));
+  const thumbs = $('#thumbs');
+  thumbs.scrollTop = thumbs.scrollHeight;
+
+  /* ── Toast ── */
+  let toastTimer;
+  function toast(msg){
+    $('#toastText').textContent = msg;
+    const t = $('#toast');
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  /* ── Mode switching ── */
+  let mode = 'today';
+  function setMode(m){
+    if (m === mode) return;
+    mode = m;
+    document.body.dataset.mode = m;
+    $('#segToday').setAttribute('aria-pressed', m === 'today');
+    $('#segFab').setAttribute('aria-pressed', m === 'fab');
+    $('#segSidebar').setAttribute('aria-pressed', m === 'sidebar');
+    if (m !== 'fab') {
+      closeChat();
+    } else {
+      fab.classList.remove('pulse'); void fab.offsetWidth; fab.classList.add('pulse');
+      const tip = $('#fabTip');
+      setTimeout(() => { if (mode === 'fab' && !chat.classList.contains('open')) tip.classList.add('show'); }, 450);
+      setTimeout(() => tip.classList.remove('show'), 2600);
+    }
+    history.replaceState(null, '', '#' + m + (m === 'sidebar' && win.classList.contains('docked') ? '-open' : ''));
+    updateModeDesc();
+  }
+  function updateModeDesc(){
+    const was = controls.offsetHeight;
+    $('#modeDesc').textContent = $('.seg button[aria-pressed="true"] .d').textContent;
+    if (controls.offsetHeight !== was) fit();
+  }
+  updateModeDesc();
+  $$('.seg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+  /* ── FAB / chat overlay ── */
+  function openChat(){
+    if (mode !== 'fab' || chat.classList.contains('open')) return;
+    $('#fabTip').classList.remove('show');
+    chat.classList.add('open');
+    fab.classList.add('open');
+    fab.setAttribute('aria-expanded', 'true');
+    fab.setAttribute('aria-label', 'Close Ada');
+    chat.setAttribute('aria-hidden', 'false');
+    chatBody.scrollTop = chatBody.scrollHeight;
+    setTimeout(() => { if (chat.classList.contains('open')) chatInput.focus({preventScroll: true}); }, 260);
+  }
+  function closeChat(){
+    if (!chat.classList.contains('open')) return;
+    chat.classList.remove('open');
+    fab.classList.remove('open');
+    fab.setAttribute('aria-expanded', 'false');
+    fab.setAttribute('aria-label', 'Ask Ada');
+    chat.setAttribute('aria-hidden', 'true');
+    if (document.activeElement && chat.contains(document.activeElement)) fab.focus({preventScroll: true});
+  }
+  fab.addEventListener('click', () => chat.classList.contains('open') ? closeChat() : openChat());
+  $('#chatMin').addEventListener('click', closeChat);
+  $('#chatClose').addEventListener('click', closeChat);
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (chat.classList.contains('open')) { e.preventDefault(); closeChat(); }
+      else if (mode === 'sidebar' && win.classList.contains('docked')) { e.preventDefault(); setDocked(false); }
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'j' || e.key === 'J')) {
+      e.preventDefault();
+      if (mode !== 'fab') setMode('fab');
+      chat.classList.contains('open') ? closeChat() : openChat();
+      return;
+    }
+    const typing = /^(INPUT|TEXTAREA)$/.test((document.activeElement || {}).tagName);
+    if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (e.key === '1') setMode('today');
+      if (e.key === '2') setMode('fab');
+      if (e.key === '3') setMode('sidebar');
+    }
+  });
+
+  /* ── Canned Ada replies ── */
+  function esc(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function reply(q){
+    const t = q.toLowerCase();
+    if (/coin|flip|heads|tails/.test(t)) return {
+      steps: ['Re-reading the coin flip exemplars on p. 37.'],
+      html: '<p>Every coin flip exemplar follows the same pattern: count how many people flip the coin. An <b>even</b> number of flips means it’s still heads up (<b>“yes”</b>); an <b>odd</b> number means it isn’t (<b>“no”</b>). <span class="cite" data-p="37">p. 37, Table 23</span></p>'
+    };
+    if (/fig|chart|graph|error|bar|categor|62b|540b/.test(t)) return {
+      steps: ['Looking at Figure 9 on this page.'],
+      html: '<p>Figure 9 breaks down the 45 problems PaLM 62B got wrong: <b>semantic understanding</b> (20), <b>one step missing</b> (18) and <b>other</b> (7). Scaling to 540B fixed 6, 12 and 4 of them — “one step missing” improved the most. <span class="cite" data-p="16">p. 16, Figure 9</span></p>'
+    };
+    if (/summar|about|tl;?dr|main|point|paper|gist/.test(t)) return {
+      steps: ['Skimming the abstract and conclusions.'],
+      html: '<p>The paper shows that giving a large model a few worked examples with intermediate reasoning steps — a <b>chain of thought</b> — sharply improves arithmetic, commonsense and symbolic reasoning. The benefit only appears at large scale (~100B parameters). <span class="cite" data-p="1">p. 1, Abstract</span></p>'
+    };
+    if (/why|scale|scaling|bigger|larger|small/.test(t)) return {
+      steps: ['Reading Appendix A.1 on p. 16.'],
+      html: '<p>Appendix A.1 argues that scale helps because bigger models make far fewer <b>semantic</b> and <b>missing-step</b> errors, while small models often write fluent but illogical reasoning. <span class="cite" data-p="16">p. 16, §A.1</span></p>'
+    };
+    const short = q.length > 42 ? q.slice(0, 40).trim() + '…' : q;
+    return {
+      steps: ['Searching this PDF for “' + short + '”.'],
+      html: '<p>Here’s what I found nearby: page 16 is the appendix on <b>why scale improves chain-of-thought prompting</b>, built around the error analysis in Figure 9. Want me to search the rest of the paper for “' + esc(short) + '”? <span class="cite" data-p="16">p. 16, Figure 9</span></p>'
+    };
+  }
+
+  function stepEl(text){
+    const d = document.createElement('div');
+    d.className = 'step busy';
+    d.innerHTML = '<span class="ic"><svg class="i"><use href="#i-check"/></svg></span><span></span>';
+    d.lastChild.textContent = text;
+    return d;
+  }
+
+  /* ── Chat thread: user bubble → steps + typing → answer (FAB overlay and sidebar share this) ── */
+  let busy = false;
+  function converse(body, q){
+    busy = true;
+    const u = document.createElement('div');
+    u.className = 'msg user';
+    u.innerHTML = '<div class="bubble"></div>';
+    u.firstChild.textContent = q;
+    body.appendChild(u);
+
+    const r = reply(q);
+    const a = document.createElement('div');
+    a.className = 'msg ada';
+    a.innerHTML = '<span class="mark"><svg><use href="#ada"/></svg></span><div class="col"><div class="steps"></div><div class="typing"><i></i><i></i><i></i></div></div>';
+    body.appendChild(a);
+    body.scrollTop = body.scrollHeight;
+
+    const col = a.querySelector('.col'), steps = a.querySelector('.steps');
+    setTimeout(() => {
+      const s = stepEl(r.steps[0]);
+      steps.appendChild(s);
+      body.scrollTop = body.scrollHeight;
+      setTimeout(() => {
+        s.classList.remove('busy');
+        col.querySelector('.typing').remove();
+        const b = document.createElement('div');
+        b.className = 'bubble';
+        b.innerHTML = r.html;
+        b.style.animation = 'fadeUp .4s ease both';
+        col.appendChild(b);
+        const acts = document.createElement('div');
+        acts.className = 'msg-acts';
+        acts.innerHTML = '<button class="copy-btn"><svg class="i"><use href="#i-copy"/></svg><span>Copy</span></button>';
+        acts.firstChild._target = b;
+        col.appendChild(acts);
+        body.scrollTop = body.scrollHeight;
+        busy = false;
+      }, 850);
+    }, 450);
+  }
+
+  /* ── FAB chat: send ── */
+  const composer = $('#composer');
+  chatInput.addEventListener('input', () => composer.classList.toggle('has', chatInput.value.trim().length > 0));
+  composer.addEventListener('submit', e => {
+    e.preventDefault();
+    const q = chatInput.value.trim();
+    if (!q || busy) return;
+    chatInput.value = '';
+    composer.classList.remove('has');
+    converse(chatBody, q);
+  });
+
+  /* ── SIDEBAR: pill ⇄ docked chat ── */
+  function setDocked(on){
+    if (win.classList.contains('docked') === on) return;
+    win.classList.toggle('docked', on);
+    $('#dockPanel').setAttribute('aria-hidden', String(!on));
+    dockInput.placeholder = on ? 'Ask a follow-up' : 'Ask Ada about this PDF…';
+    if (on) dockBody.scrollTop = dockBody.scrollHeight;
+    if (mode === 'sidebar') history.replaceState(null, '', on ? '#sidebar-open' : '#sidebar');
+  }
+  function askDock(q){
+    if (!q || busy) return;
+    busy = true;
+    dockInput.value = '';
+    dockForm.classList.remove('has');
+    const wasDocked = win.classList.contains('docked');
+    setDocked(true);
+    const empty = $('#dockEmpty');
+    if (empty) empty.remove();
+    setTimeout(() => converse(dockBody, q), wasDocked ? 0 : 280);
+  }
+  dockInput.addEventListener('input', () => dockForm.classList.toggle('has', dockInput.value.trim().length > 0));
+  dockForm.addEventListener('submit', e => { e.preventDefault(); askDock(dockInput.value.trim()); });
+  $$('.js-sug').forEach(b => b.addEventListener('click', () => askDock(b.textContent)));
+  $('#dockCollapse').addEventListener('click', () => {
+    setDocked(false);
+    if (document.body.classList.contains('compact')) document.activeElement.blur();
+    else dockInput.focus({preventScroll: true});
+  });
+
+  /* ── TODAY: ask bar → refresh answer card ── */
+  $('#askbar').addEventListener('submit', e => {
+    e.preventDefault();
+    const inp = $('#askInput');
+    const q = inp.value.trim();
+    if (!q || busy) return;
+    busy = true;
+    inp.value = '';
+    card.classList.remove('gone', 'collapsed');
+    $('#cardQ').textContent = q;
+    const steps = $('#cardSteps'), ans = $('#cardAns');
+    steps.innerHTML = '';
+    ans.innerHTML = '';
+    ans.style.display = 'none';
+    $('.copy-btn', card).style.display = 'none';
+    const r = reply(q);
+    const s = stepEl(r.steps[0]);
+    steps.appendChild(s);
+    setTimeout(() => {
+      s.classList.remove('busy');
+      ans.innerHTML = r.html;
+      ans.style.display = '';
+      ans.style.animation = 'none'; void ans.offsetWidth; ans.style.animation = '';
+      $('.copy-btn', card).style.display = '';
+      busy = false;
+    }, 1200);
+  });
+  $('#cardCollapse').addEventListener('click', () => card.classList.toggle('collapsed'));
+  $('#cardExpand').addEventListener('click', () => card.classList.toggle('big'));
+  $('#cardNew').addEventListener('click', () => {
+    card.classList.add('gone');
+    $('#askInput').focus({preventScroll: true});
+  });
+
+  /* ── Copy buttons (event delegation) ── */
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.copy-btn');
+    if (!btn) return;
+    const target = btn._target || $(btn.dataset.copy);
+    const text = target ? target.innerText.trim() : '';
+    const done = () => {
+      btn.classList.add('ok');
+      btn.querySelector('span').textContent = 'Copied';
+      setTimeout(() => { btn.classList.remove('ok'); btn.querySelector('span').textContent = 'Copy'; }, 1400);
+    };
+    try {
+      if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, done);
+      else done();
+    } catch (_) { done(); }
+  });
+
+  /* ── Citations ── */
+  document.addEventListener('click', e => {
+    const c = e.target.closest('.cite');
+    if (!c) return;
+    if (c.dataset.p === '16') {
+      const fig = $('#fig9'), sc = $('#scroller');
+      sc.scrollTo({top: Math.max(0, fig.offsetTop - 30), behavior: 'smooth'});
+      fig.classList.remove('flash'); void fig.offsetWidth; fig.classList.add('flash');
+    } else {
+      toast('Would jump to page ' + c.dataset.p + ' — only page 16 exists in this mockup');
+    }
+  });
+
+  /* ── Draw to ask ── */
+  $$('.js-draw').forEach(b => b.addEventListener('click', () => toast('Draw a circle around anything on the page to ask Ada about it')));
+
+  /* ── Chrome niceties ── */
+  $('#sideToggle').addEventListener('click', e => {
+    $('#win').classList.toggle('no-side');
+    e.currentTarget.classList.toggle('on');
+  });
+  $$('.tabs button').forEach(b => b.addEventListener('click', () => {
+    $$('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+    $('#sidebar').classList.toggle('show-toc', b.dataset.tab === 'toc');
+  }));
+  $$('#tools .tool:not([disabled])').forEach(b => b.addEventListener('click', () => {
+    if (/Undo|Print/.test(b.title)) return;
+    $$('#tools .tool').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+  }));
+  $$('.thumb').forEach(t => t.addEventListener('click', () => {
+    if (t.dataset.p !== '16') toast('Only page 16 is rendered in this mockup');
+  }));
+  let zoom = 1;
+  const zooms = [0.75, 0.9, 1, 1.1, 1.25, 1.5];
+  function setZoom(dir){
+    const i = Math.max(0, Math.min(zooms.length - 1, zooms.indexOf(zoom) + dir));
+    zoom = zooms[i];
+    $('#page').style.setProperty('--z', zoom);
+    $('#zoomVal').textContent = Math.round(zoom * 100) + '%';
+  }
+  $('#zoomIn').addEventListener('click', () => setZoom(1));
+  $('#zoomOut').addEventListener('click', () => setZoom(-1));
+  $$('.wctl button').forEach(b => b.addEventListener('click', () => toast('Window controls are decorative in this mockup')));
+
+  /* ── Deep links: #today, #fab, #fab-open, #sidebar, #sidebar-open ── */
+  const h = location.hash;
+  if (h === '#fab' || h === '#fab-open') {
+    setMode('fab');
+    if (h === '#fab-open') setTimeout(openChat, 300);
+  }
+  if (h === '#sidebar' || h === '#sidebar-open') {
+    setMode('sidebar');
+    if (h === '#sidebar-open') setTimeout(() => setDocked(true), 300);
+  }
+})();
+</script>
+</body>
+</html>
